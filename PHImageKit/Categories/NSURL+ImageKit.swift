@@ -24,17 +24,17 @@
 
 import Foundation
 
-extension NSURL {
+extension URL {
 
     func ik_isValid() -> Bool {
         let urlRegEx = "(https|http)://.*"
-        let predicate = NSPredicate(format:"SELF MATCHES %@", argumentArray:[urlRegEx])
+        let predicate = Predicate(format:"SELF MATCHES %@", argumentArray:[urlRegEx])
 
-        return predicate.evaluateWithObject(absoluteString)
+        return predicate.evaluate(with: absoluteString)
     }
 
     func ik_cacheKey() -> String {
-        return absoluteString.ik_MD5
+        return absoluteString!.ik_MD5
     }
 
 }

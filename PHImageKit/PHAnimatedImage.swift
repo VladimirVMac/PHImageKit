@@ -33,16 +33,16 @@ public class PHAnimatedImage: UIImage {
     //TODO: (Vlado) Handle memory warnings
     private(set) internal var loopCount = Int.max
     private(set) internal var posterImage: UIImage?
-    private(set) internal var delayTimesForIndexes = [Int : NSTimeInterval]()
+    private(set) internal var delayTimesForIndexes = [Int : TimeInterval]()
     private(set) internal var frameCount = 0
 
     private var frameCacheSize = 10
     private var cachedFramesForIndexes = [Int:UIImage]()
     private var cachedFrameIndexes = NSMutableIndexSet()
     private var requestedFrameIndexes = NSMutableIndexSet()
-    private var imageSource: CGImageSourceRef?
+    private var imageSource: CGImageSource?
     private var posterImageFrameIndex = 0
-    private lazy var readFrameQueue = dispatch_queue_create(imageKitDomain + ".gifReadQueue", DISPATCH_QUEUE_SERIAL)
+    private var readFrameQueue = DispatchQueue(label: "\(imageKitDomain).gifReadQueue", attributes: [.serial])
 
     /**
      Create animated image
@@ -51,10 +51,10 @@ public class PHAnimatedImage: UIImage {
 
      - returns: Newly created instance of `PHAnimatedImage`
      */
-    public init(initWithAnimatedGIFData data: NSData) {
+    public init(initWithAnimatedGIFData data: Data) {
         super.init()
 
-        if data.length == 0 {
+        if data.count == 0 {
             return
         }
 
@@ -86,7 +86,7 @@ public class PHAnimatedImage: UIImage {
         super.init(coder: aDecoder)
     }
 
-    required convenience public init(imageLiteral name: String) {
+    required convenience public init(imageLiteralResourceName name: String) {
         fatalError("init(imageLiteral:) has not been implemented")
     }
 
@@ -105,27 +105,27 @@ public class PHAnimatedImage: UIImage {
         if cachedFramesForIndexes.count < frameCount {
             let indexesToCache = frameIndexesToCache(index)
 
-            indexesToCache.removeIndexes(cachedFrameIndexes)
-            indexesToCache.removeIndexes(requestedFrameIndexes)
-            indexesToCache.removeIndex(posterImageFrameIndex)
+            indexesToCache.remove(cachedFrameIndexes as IndexSet)
+            indexesToCache.remove(requestedFrameIndexes as IndexSet)
+            indexesToCache.remove(posterImageFrameIndex)
 
             if indexesToCache.count > 0 {
-                addFrameIndexesToCache(indexesToCache, index: index)
+                addFrameIndexesToCache(indexesToCache as IndexSet, index: index)
             }
         }
 
         return cachedFramesForIndexes[index]
     }
 
-    private func addFrameIndexesToCache(indexesToCache:NSIndexSet, index:Int) {
-        requestedFrameIndexes.addIndexes(indexesToCache)
+    private func addFrameIndexesToCache(_ indexesToCache:IndexSet, index:Int) {
+        requestedFrameIndexes.add(indexesToCache)
 
-        dispatch_async(readFrameQueue) { [weak self] () -> Void in
-            indexesToCache.enumerateRangesWithOptions(NSEnumerationOptions.Concurrent) { (range, stop) in
+        readFrameQueue.async { [weak self] () -> Void in
+            (indexesToCache as NSIndexSet).enumerateRanges(options: EnumerationOptions.concurrent) { (range, stop) in
                 for i in range.location ..< NSMaxRange(range) {
                     self?.cachedFramesForIndexes[i] = self?.predrawnImageAtIndex(i)
-                    self?.cachedFrameIndexes.addIndex(i)
-                    self?.requestedFrameIndexes.removeIndex(i)
+                    self?.cachedFrameIndexes.add(i)
+                    self?.requestedFrameIndexes.remove(i)
                 }
             }
 
@@ -133,12 +133,12 @@ public class PHAnimatedImage: UIImage {
         }
     }
 
-    private func predrawnImageAtIndex(index:Int) -> UIImage {
+    private func predrawnImageAtIndex(_ index:Int) -> UIImage {
         guard let imageRef = CGImageSourceCreateImageAtIndex(imageSource!, index, nil) else {
             return UIImage()
         }
 
-        let image = UIImage(CGImage: imageRef)
+        let image = UIImage(cgImage: imageRef)
 
         weak var weakSelf = self
 
@@ -149,42 +149,42 @@ public class PHAnimatedImage: UIImage {
         return UIImage()
     }
 
-    private func frameIndexesToCache(index:Int) -> NSMutableIndexSet {
+    private func frameIndexesToCache(_ index:Int) -> NSMutableIndexSet {
         if frameCacheSize == frameCount {
-            return NSMutableIndexSet(indexesInRange: NSMakeRange(0, frameCount))
+            return NSMutableIndexSet(indexesIn: NSMakeRange(0, frameCount))
         }
 
         let firstLength = min(frameCacheSize, frameCount - index)
 
         let indexesToCacheMutable = NSMutableIndexSet()
 
-        indexesToCacheMutable.addIndexesInRange(NSMakeRange(index, firstLength))
+        indexesToCacheMutable.add(in: NSMakeRange(index, firstLength))
 
         let secondLength = frameCacheSize - firstLength
         if (secondLength > 0) {
-            indexesToCacheMutable.addIndexesInRange(NSMakeRange(0, secondLength))
+            indexesToCacheMutable.add(in: NSMakeRange(0, secondLength))
         }
 
         return indexesToCacheMutable;
     }
 
-    private func purgeFrameCacheIfNeeded (index:Int) {
+    private func purgeFrameCacheIfNeeded (_ index:Int) {
         if cachedFrameIndexes.count > frameCacheSize {
             let indexesToPurge = cachedFrameIndexes.mutableCopy()
 
-            indexesToPurge.removeIndexes(frameIndexesToCache(index))
-            indexesToPurge.removeIndex(posterImageFrameIndex)
+            indexesToPurge.remove(frameIndexesToCache(index))
+            indexesToPurge.remove(posterImageFrameIndex)
 
-            indexesToPurge.enumerateRangesUsingBlock { (range, stop) in
+            indexesToPurge.enumerateRanges { (range, stop) in
                 for i in range.location ..< NSMaxRange(range) {
-                    self.cachedFrameIndexes.removeIndex(i)
-                    self.cachedFramesForIndexes.removeValueForKey(i)
+                    self.cachedFrameIndexes.remove(i)
+                    self.cachedFramesForIndexes.removeValue(forKey: i)
                 }
             }
         }
     }
 
-    private func setPosterImage(index : Int) {
+    private func setPosterImage(_ index : Int) {
         if posterImage != nil {
             return
         }
@@ -193,14 +193,14 @@ public class PHAnimatedImage: UIImage {
             return
         }
 
-        posterImage = UIImage(CGImage: frameImageRef)
+        posterImage = UIImage(cgImage: frameImageRef)
         posterImageFrameIndex = index
         cachedFramesForIndexes[posterImageFrameIndex] = posterImage
-        cachedFrameIndexes.addIndex(posterImageFrameIndex)
+        cachedFrameIndexes.add(posterImageFrameIndex)
     }
 
-    private func setLoopCount(properties: NSDictionary) {
-        if let properties = properties.objectForKey(kCGImagePropertyGIFDictionary) as? NSDictionary, let count =  properties.objectForKey(kCGImagePropertyGIFLoopCount) as? Int {
+    private func setLoopCount(_ properties: NSDictionary) {
+        if let properties = properties.object(forKey: kCGImagePropertyGIFDictionary) as? NSDictionary, let count =  properties.object(forKey: kCGImagePropertyGIFLoopCount) as? Int {
             loopCount = count
         }
 
@@ -209,16 +209,16 @@ public class PHAnimatedImage: UIImage {
         }
     }
 
-    private func setDelayTimes(index : Int) {
+    private func setDelayTimes(_ index : Int) {
         let properties = CGImageSourceCopyPropertiesAtIndex(self.imageSource!, index , nil)! as NSDictionary
-        let framePropertiesGIF = properties.objectForKey(kCGImagePropertyGIFDictionary)
+        let framePropertiesGIF = properties.object(forKey: kCGImagePropertyGIFDictionary)
 
-        let minumumDelay : NSTimeInterval = 0.1
-        var delayTime : NSTimeInterval = 0
+        let minumumDelay : TimeInterval = 0.1
+        var delayTime : TimeInterval = 0
 
-        if let time = framePropertiesGIF?.objectForKey(kCGImagePropertyGIFUnclampedDelayTime) as! Double? {
+        if let time = framePropertiesGIF?.object(forKey: kCGImagePropertyGIFUnclampedDelayTime) as! Double? {
             delayTime = time
-        } else if let time = framePropertiesGIF?.objectForKey(kCGImagePropertyGIFDelayTime) as! Double? {
+        } else if let time = framePropertiesGIF?.object(forKey: kCGImagePropertyGIFDelayTime) as! Double? {
             delayTime = time
         } else {
             delayTime = index == 0 ? minumumDelay : delayTimesForIndexes[index - 1]!

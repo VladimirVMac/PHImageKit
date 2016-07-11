@@ -26,25 +26,25 @@ import UIKit
 
 class PHFileCache: NSObject, PHCacheProtocol {
 
-    private let ioQueue = dispatch_queue_create(imageKitDomain  + ".ioQueue", DISPATCH_QUEUE_SERIAL)
-    private var fileManager = NSFileManager()
+    private let ioQueue = DispatchQueue(label: imageKitDomain  + ".ioQueue", attributes: DispatchQueueAttributes.serial)
+    private let _fileManager = FileManager()
     private var directory : String!
     private var maxDiskCacheSize : UInt = 0
 
     override init() {
         super.init()
 
-        directory = (NSSearchPathForDirectoriesInDomains(.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true).first! as NSString).stringByAppendingPathComponent(imageKitDomain)
+        directory = (NSSearchPathForDirectoriesInDomains(.cachesDirectory, FileManager.SearchPathDomainMask.userDomainMask, true).first! as NSString).appendingPathComponent(imageKitDomain)
 
         createDirectoryIfNeeded()
 
         setCacheSize(200)
     }
 
-    func saveImageObject(object: PHImageObject, key: String, completion: PHVoidCompletion? = nil) {
+    func saveImageObject(_ object: PHImageObject, key: String, completion: PHVoidCompletion? = nil) {
         ioDispatch {
             if let data = object.data {
-                self.fileManager.createFileAtPath(self.pathFromKey(key), contents: data, attributes: nil)
+                self._fileManager.createFile(atPath: self.pathFromKey(key), contents: data as Data, attributes: nil)
             }
 
             if let completion = completion {
@@ -53,31 +53,31 @@ class PHFileCache: NSObject, PHCacheProtocol {
         }
     }
 
-    func getImageObject(key: String, completion: PHManagerCompletion) {
+    func getImageObject(_ key: String, completion: PHManagerCompletion) {
         ioDispatch {
-            let data = NSData(contentsOfFile: self.pathFromKey(key))
+            let data = try? Data(contentsOf: URL(fileURLWithPath: self.pathFromKey(key)))
             completion(object: PHImageObject(data: data))
         }
     }
 
-    func isCached(key: String) -> Bool {
-        return fileManager.fileExistsAtPath(pathFromKey(key))
+    func isCached(_ key: String) -> Bool {
+        return _fileManager.fileExists(atPath: pathFromKey(key))
     }
 
-    func removeImageObject(key: String, completion: PHVoidCompletion?) {
+    func removeImageObject(_ key: String, completion: PHVoidCompletion?) {
         ioDispatch {
             do {
-                try self.fileManager.removeItemAtPath(self.pathFromKey(key))
+                try self._fileManager.removeItem(atPath: self.pathFromKey(key))
             } catch _ {}
 
             self.callCompletion(completion)
         }
     }
 
-    func clear(completion: PHVoidCompletion? = nil) {
+    func clear(_ completion: PHVoidCompletion? = nil) {
         ioDispatch { () -> Void in
             do {
-                try self.fileManager.removeItemAtPath(self.directory)
+                try self._fileManager.removeItem(atPath: self.directory)
             } catch _ {}
 
             self.createDirectoryIfNeeded()
@@ -86,7 +86,7 @@ class PHFileCache: NSObject, PHCacheProtocol {
         }
     }
 
-    func clearExpiredImages(completion: PHVoidCompletion? = nil) {
+    func clearExpiredImages(_ completion: PHVoidCompletion? = nil) {
         ioDispatch {
             let targetSize: UInt = self.maxDiskCacheSize/2
             var totalSize: UInt = 0
@@ -94,7 +94,7 @@ class PHFileCache: NSObject, PHCacheProtocol {
             for object in self.getCacheObjects() {
                 if object.modificationDate.ik_isExpired() || totalSize > targetSize {
                     do {
-                        try self.fileManager.removeItemAtURL(object.url)
+                        try self._fileManager.removeItem(at: object.url)
                     } catch _ {}
                 } else {
                     totalSize += object.size
@@ -105,7 +105,7 @@ class PHFileCache: NSObject, PHCacheProtocol {
         }
     }
 
-    func setCacheSize(size: UInt) {
+    func setCacheSize(_ size: UInt) {
         maxDiskCacheSize = max(50, min(size, 500)) * 1024 * 1024
     }
 
@@ -113,41 +113,41 @@ class PHFileCache: NSObject, PHCacheProtocol {
         var totalSize: UInt = 0
 
         getFiles().forEach {
-            totalSize += self.getResourceValue($0, key: NSURLTotalFileAllocatedSizeKey, defaultValue: NSNumber()).unsignedLongValue
+            totalSize += getResourceValue($0, key: URLResourceKey.totalFileAllocatedSizeKey.rawValue, defaultValue: NSNumber()).uintValue
         }
 
         return totalSize
     }
 
-    private func ioDispatch(operation : (() -> Void)) {
-        dispatch_async(ioQueue, operation)
+    private func ioDispatch(_ operation : (() -> Void)) {
+        ioQueue.async(execute: operation)
     }
 
-    private func callCompletion(completion: PHVoidCompletion? = nil) {
+    private func callCompletion(_ completion: PHVoidCompletion? = nil) {
         if let completion = completion {
             completion()
         }
     }
 
-    private func pathFromKey(key : String) -> String {
-        return (directory as NSString).stringByAppendingPathComponent(key)
+    private func pathFromKey(_ key : String) -> String {
+        return (directory as NSString).appendingPathComponent(key)
     }
 
     private func createDirectoryIfNeeded() {
         ioDispatch {
-            if !self.fileManager.fileExistsAtPath(self.directory) {
-                try! self.fileManager.createDirectoryAtPath(self.directory, withIntermediateDirectories: true, attributes: nil)
+            if !self._fileManager.fileExists(atPath: self.directory) {
+                try! self._fileManager.createDirectory(atPath: self.directory, withIntermediateDirectories: true, attributes: nil)
             }
         }
     }
 
-    private func getFiles() -> [NSURL] {
-        let directoryUrl = NSURL(fileURLWithPath: self.directory)
-        let resourceKeys = [NSURLIsDirectoryKey, NSURLContentModificationDateKey, NSURLTotalFileAllocatedSizeKey]
+    private func getFiles() -> [URL] {
+        let directoryUrl = URL(fileURLWithPath: self.directory)
+        let resourceKeys = [URLResourceKey.isDirectoryKey.rawValue, URLResourceKey.contentModificationDateKey.rawValue, URLResourceKey.totalFileAllocatedSizeKey.rawValue]
 
-        let fileEnumerator = self.fileManager.enumeratorAtURL(directoryUrl, includingPropertiesForKeys: resourceKeys, options: .SkipsHiddenFiles, errorHandler: nil)
+        let fileEnumerator = self._fileManager.enumerator(at: directoryUrl, includingPropertiesForKeys: resourceKeys, options: .skipsHiddenFiles, errorHandler: nil)
 
-        if let fileEnumerator = fileEnumerator, urls = fileEnumerator.allObjects as? [NSURL] {
+        if let fileEnumerator = fileEnumerator, urls = fileEnumerator.allObjects as? [URL] {
             return urls
         }
 
@@ -159,18 +159,18 @@ class PHFileCache: NSObject, PHCacheProtocol {
             let object = PHFileCacheObject()
 
             object.url = url
-            object.modificationDate = self.getResourceValue(url, key: NSURLContentModificationDateKey, defaultValue: NSDate())
-            object.size = self.getResourceValue(url, key: NSURLTotalFileAllocatedSizeKey, defaultValue: NSNumber()).unsignedLongValue
+            object.modificationDate = getResourceValue(url, key: URLResourceKey.contentModificationDateKey.rawValue, defaultValue: NSDate()) as NSDate as Date
+            object.size = self.getResourceValue(url, key: URLResourceKey.totalFileAllocatedSizeKey.rawValue, defaultValue: NSNumber()).uintValue
 
             return object
-            }.sort({
-                $0.modificationDate.compare($1.modificationDate) == .OrderedAscending
+            }.sorted(isOrderedBefore: {
+                $0.modificationDate.compare($1.modificationDate) == .orderedAscending
             })
     }
 
-    private func getResourceValue<T:AnyObject>(url: NSURL, key: String, defaultValue: T) -> T {
+    private func getResourceValue<T:AnyObject>(_ url: URL, key: String, defaultValue: T) -> T {
         var value: AnyObject?
-        try! url.getResourceValue(&value, forKey: key)
+        try! (url as NSURL).getResourceValue(&value, forKey: URLResourceKey(rawValue: key))
 
         if let value = value as? T {
             return value
@@ -183,8 +183,8 @@ class PHFileCache: NSObject, PHCacheProtocol {
 
 class PHFileCacheObject {
     
-    var url : NSURL!
+    var url : URL!
     var size : UInt = 0
-    var modificationDate = NSDate()
+    var modificationDate = Date()
     
 }

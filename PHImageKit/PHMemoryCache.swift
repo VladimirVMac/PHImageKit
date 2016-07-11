@@ -24,7 +24,7 @@
 
 import UIKit
 
-class PHMemoryCache: NSCache, PHCacheProtocol {
+class PHMemoryCache: Cache<AnyObject, AnyObject>, PHCacheProtocol {
 
     override init() {
         super.init()
@@ -38,14 +38,14 @@ class PHMemoryCache: NSCache, PHCacheProtocol {
         name = imageKitDomain + "memoryCache"
     }
 
-    func saveImageObject(object: PHImageObject, key: String, completion: PHVoidCompletion? = nil) {
+    func saveImageObject(_ object: PHImageObject, key: String, completion: PHVoidCompletion? = nil) {
         if let image = object.image {
             self.setObject(image, forKey: key, cost: image.ik_memoryCost)
         }
     }
 
-    func getImageObject(key: String, completion: PHManagerCompletion) {
-        guard let image = objectForKey(key) as? UIImage else {
+    func getImageObject(_ key: String, completion: PHManagerCompletion) {
+        guard let image = object(forKey: key) as? UIImage else {
             completion(object: nil)
             return
         }
@@ -53,19 +53,19 @@ class PHMemoryCache: NSCache, PHCacheProtocol {
         completion(object: PHImageObject(image: image))
     }
 
-    func isCached(key: String) -> Bool {
-        return objectForKey(key) != nil
+    func isCached(_ key: String) -> Bool {
+        return object(forKey: key) != nil
     }
 
-    func removeImageObject(key: String, completion: PHVoidCompletion? = nil) {
-        removeObjectForKey(key)
+    func removeImageObject(_ key: String, completion: PHVoidCompletion? = nil) {
+        removeObject(forKey: key)
     }
 
-    func clear(completion: PHVoidCompletion? = nil) {
+    func clear(_ completion: PHVoidCompletion? = nil) {
         removeAllObjects()
     }
 
-    func setCacheSize(size: UInt) {
+    func setCacheSize(_ size: UInt) {
         totalCostLimit = max(50, min(Int(size), 250)) * 1024 * 1024
     }
 

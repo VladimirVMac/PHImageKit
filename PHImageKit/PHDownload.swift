@@ -28,29 +28,29 @@ class PHDownload {
 
     private var callbacks = [String:PHCallback]()
 
-    private var task : NSURLSessionDataTask
+    private var task : URLSessionDataTask
     private var data = NSMutableData()
 
-    init(task: NSURLSessionDataTask) {
+    init(task: URLSessionDataTask) {
         self.task = task
     }
 
-    func addCallback(callback:PHCallback) -> String {
-        let key = "\(task.currentRequest?.URL?.absoluteString ?? "Unknown")-\(NSDate().timeIntervalSince1970)";
+    func addCallback(_ callback:PHCallback) -> String {
+        let key = "\(task.currentRequest?.url?.absoluteString ?? "Unknown")-\(Date().timeIntervalSince1970)";
 
         callbacks[key] = callback;
 
         return key;
     }
 
-    func failure(error: NSError) {
+    func failure(_ error: NSError) {
         for (_, callback) in callbacks {
             callback.completion(image: nil, error: error)
         }
     }
 
     func success() {
-        let imageObject = PHImageObject(data: data)
+        let imageObject = PHImageObject(data: data as Data)
         let error : NSError? = imageObject != nil ? nil : NSError.ik_invalidDataError()
 
         for (_, callback) in callbacks {
@@ -59,8 +59,8 @@ class PHDownload {
         }
     }
 
-    func progress(newData: NSData, contentLenght: UInt) {
-        data.appendData(newData)
+    func progress(_ newData: Data, contentLenght: UInt) {
+        data.append(newData)
 
         let percent = CGFloat(UInt(data.length)/contentLenght)
 
@@ -69,8 +69,8 @@ class PHDownload {
         }
     }
 
-    func cancel(key: String) -> Bool {
-        callbacks.removeValueForKey(key)
+    func cancel(_ key: String) -> Bool {
+        callbacks.removeValue(forKey: key)
 
         if callbacks.count > 0 {
             return false

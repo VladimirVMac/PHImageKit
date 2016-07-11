@@ -29,12 +29,12 @@ typealias PHCallback    = (progress: PHProgressCompletion , completion: PHComple
 
 class PHDownloader : NSObject {
 
-    private var fetchObjects = [NSURL : PHDownload]()
-    private let timeout : NSTimeInterval = 15
-    private let barrierQueue: dispatch_queue_t = dispatch_queue_create(imageKitDomain + ".barrierQueue", DISPATCH_QUEUE_CONCURRENT)
-    private let processQueue: dispatch_queue_t = dispatch_queue_create(imageKitDomain + ".processQueue", DISPATCH_QUEUE_CONCURRENT)
+    private var fetchObjects = [URL : PHDownload]()
+    private let timeout : TimeInterval = 15
+    private let barrierQueue: DispatchQueue = DispatchQueue(label: imageKitDomain + ".barrierQueue", attributes: DispatchQueueAttributes.concurrent)
+    private let processQueue: DispatchQueue = DispatchQueue(label: imageKitDomain + ".processQueue", attributes: DispatchQueueAttributes.concurrent)
 
-    func download(URL: NSURL, progress: PHProgressCompletion, completion: PHCompletion) -> String? {
+    func download(_ URL: Foundation.URL, progress: PHProgressCompletion, completion: PHCompletion) -> String? {
         if !URL.ik_isValid() {
             completion(image: nil, error: NSError.ik_invalidUrlError())
             return nil
@@ -53,7 +53,7 @@ class PHDownloader : NSObject {
         return key
     }
 
-    func cancel(url: NSURL, key: String) {
+    func cancel(_ url: URL, key: String) {
         if let object = fetchObjectForKey(url) {
             if (object.cancel(key)) {
                 removeFetchObject(url)
@@ -61,20 +61,20 @@ class PHDownloader : NSObject {
         }
     }
 
-    private func createTask(url: NSURL) -> NSURLSessionDataTask {
-        let request = NSMutableURLRequest(URL: url, cachePolicy: .ReloadIgnoringLocalCacheData, timeoutInterval: self.timeout)
-        request.HTTPShouldUsePipelining = true
+    private func createTask(_ url: URL) -> URLSessionDataTask {
+        let request = NSMutableURLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: self.timeout)
+        request.httpShouldUsePipelining = true
 
-        let session = NSURLSession(configuration: NSURLSessionConfiguration.ephemeralSessionConfiguration(), delegate: self, delegateQueue:NSOperationQueue.mainQueue())
+        let session = Foundation.URLSession(configuration: URLSessionConfiguration.ephemeral, delegate: self, delegateQueue:OperationQueue.main)
 
-        let task = session.dataTaskWithRequest(request)
-        task.priority = NSURLSessionTaskPriorityDefault
+        let task = session.dataTask(with: request as URLRequest)
+        task.priority = URLSessionTask.defaultPriority
         task.resume()
 
         return task
     }
 
-    private func fetchObjectForKey(key: NSURL) -> PHDownload? {
+    private func fetchObjectForKey(_ key: URL) -> PHDownload? {
         var object : PHDownload?
 
         barrierDispatch {
@@ -84,31 +84,31 @@ class PHDownloader : NSObject {
         return object
     }
 
-    private func removeFetchObject(URL: NSURL) {
+    private func removeFetchObject(_ URL: Foundation.URL) {
         barrierDispatch {
-            self.fetchObjects.removeValueForKey(URL)
+            self.fetchObjects.removeValue(forKey: URL)
         }
     }
 
-    private func barrierDispatch(closure: (() -> Void)) {
-        dispatch_barrier_sync(barrierQueue, closure)
+    private func barrierDispatch(_ closure: (() -> Void)) {
+        barrierQueue.sync(flags: .barrier, execute: closure)
     }
 
-    private func processDispatch(closure: (() -> Void)) {
-        dispatch_async(processQueue, closure)
+    private func processDispatch(_ closure: (() -> Void)) {
+        processQueue.async(execute: closure)
     }
 }
 
-extension PHDownloader : NSURLSessionDataDelegate {
+extension PHDownloader : URLSessionDataDelegate {
 
-    func URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveData data: NSData) {
-        if let URL = dataTask.originalRequest?.URL, fetchObject = fetchObjectForKey(URL) {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        if let URL = dataTask.originalRequest?.url, fetchObject = fetchObjectForKey(URL) {
             fetchObject.progress(data, contentLenght: UInt(max(dataTask.response!.expectedContentLength, 1)))
         }
     }
 
-    func URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError error: NSError?) {
-        let url = (task.originalRequest?.URL)!
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: NSError?) {
+        let url = (task.originalRequest?.url)!
 
         guard let fetchObject = self.fetchObjectForKey(url) else {
             return
@@ -130,12 +130,12 @@ extension PHDownloader : NSURLSessionDataDelegate {
         }
     }
 
-    func URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveResponse response: NSURLResponse, completionHandler: (NSURLSessionResponseDisposition) -> Void) {
-        completionHandler(NSURLSessionResponseDisposition.Allow)
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: (URLSession.ResponseDisposition) -> Void) {
+        completionHandler(Foundation.URLSession.ResponseDisposition.allow)
     }
 
-    func URLSession(session: NSURLSession, didReceiveChallenge challenge: NSURLAuthenticationChallenge, completionHandler: (NSURLSessionAuthChallengeDisposition, NSURLCredential?) -> Void) {
-        completionHandler(.PerformDefaultHandling, nil)
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: (Foundation.URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        completionHandler(.performDefaultHandling, nil)
     }
     
 }

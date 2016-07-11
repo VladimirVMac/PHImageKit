@@ -24,7 +24,7 @@
 
 import UIKit
 
-let imageKitDomain = "\(NSBundle.mainBundle().bundleIdentifier!).imageKit"
+let imageKitDomain = "\(Bundle.main.bundleIdentifier!).imageKit"
 
 public typealias PHVoidCompletion = () -> Void
 public typealias PHProgressCompletion = (percent : CGFloat) -> Void
@@ -48,7 +48,7 @@ public class PHManager: NSObject {
 
     - returns: Unique generated download key. It can be used to cancel request.
     */
-    public func imageWithUrl(url: NSURL, progress: PHProgressCompletion, completion: PHManagerCompletion) -> String? {
+    public func imageWithUrl(_ url: URL, progress: PHProgressCompletion, completion: PHManagerCompletion) -> String? {
         if imageFromCache(url, completion: completion) {
             return nil;
         }
@@ -62,8 +62,8 @@ public class PHManager: NSObject {
      - parameter url:        Image URL
      - parameter completion: Completion closure it returns image
      */
-    public func imageWithUrl(url: NSURL, completion: ((image: UIImage?) -> Void)) {
-        imageWithUrl(url, progress: { (percent) -> Void in }) { (object) -> Void in
+    public func imageWithUrl(_ url: URL, completion: ((image: UIImage?) -> Void)) {
+        let _ = imageWithUrl(url, progress: { (percent) -> Void in }) { (object) -> Void in
             completion(image: object?.image)
         }
     }
@@ -74,10 +74,10 @@ public class PHManager: NSObject {
      - parameter url:       Image URL
      - parameter comletion: Completion closure returns raw image data
      */
-    public func imageData(url: NSURL, comletion: ((data: NSData) -> Void)) {
-        imageWithUrl(url, progress: { (percent) -> Void in }) { (object) -> Void in
+    public func imageData(_ url: URL, comletion: ((data: Data) -> Void)) {
+        let _ = imageWithUrl(url, progress: { (percent) -> Void in }) { (object) -> Void in
             if let object = object, data = object.data {
-                comletion(data: data)
+                comletion(data: data as Data)
             }
         }
     }
@@ -88,7 +88,7 @@ public class PHManager: NSObject {
      - parameter url: Image URL
      - parameter key: Unique key returned from `imageWithUrl:`
      */
-    public func cancelImageRetrieve(url: NSURL, key: String) {
+    public func cancelImageRetrieve(_ url: URL, key: String) {
         downloader.cancel(url, key: key)
     }
 
@@ -111,7 +111,7 @@ public class PHManager: NSObject {
 
      - parameter completion: Optional completion closure
      */
-    public func purgeFileCache(completion: PHVoidCompletion? = nil) {
+    public func purgeFileCache(_ completion: PHVoidCompletion? = nil) {
         cache.clearFileChache(completion)
     }
 
@@ -122,7 +122,7 @@ public class PHManager: NSObject {
         - memoryCacheSize: Size for memory cache in MB. Minimum 50 mb. maximum 250 mb. Default is 50 mb.
         - fileCacheSize: Size for file cache in MB. Minimum 50 mb. maximum 500 mb. Default is 200 mb.
     */
-    public func setCacheSize(memoryCacheSize: UInt, fileCacheSize: UInt) {
+    public func setCacheSize(_ memoryCacheSize: UInt, fileCacheSize: UInt) {
         cache.setCacheSize(memoryCacheSize, fileCacheSize: fileCacheSize)
     }
 
@@ -135,7 +135,7 @@ public class PHManager: NSObject {
         return cache.cacheSize()
     }
 
-    private func imageFromCache(url: NSURL, completion: PHManagerCompletion) -> Bool {
+    private func imageFromCache(_ url: URL, completion: PHManagerCompletion) -> Bool {
         if cache.isImageCached(url) {
             cache.getImage(url, completion: completion)
             return true
@@ -144,7 +144,7 @@ public class PHManager: NSObject {
         return false
     }
 
-    private func imageFromWeb(url: NSURL,progress: PHProgressCompletion , completion: PHManagerCompletion) -> String? {
+    private func imageFromWeb(_ url: URL,progress: PHProgressCompletion , completion: PHManagerCompletion) -> String? {
         return downloader.download(url, progress: progress) { (imageObject, error) in
             if let object = imageObject {
                 self.cache.saveImage(object, url: url)
