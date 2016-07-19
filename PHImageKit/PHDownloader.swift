@@ -102,7 +102,7 @@ class PHDownloader : NSObject {
 extension PHDownloader : URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        if let URL = dataTask.originalRequest?.url, fetchObject = fetchObjectForKey(URL) {
+        if let URL = dataTask.originalRequest?.url, let fetchObject = fetchObjectForKey(URL) {
             fetchObject.progress(data, contentLenght: UInt(max(dataTask.response!.expectedContentLength, 1)))
         }
     }

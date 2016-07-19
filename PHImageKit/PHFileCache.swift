@@ -147,7 +147,7 @@ class PHFileCache: NSObject, PHCacheProtocol {
 
         let fileEnumerator = self._fileManager.enumerator(at: directoryUrl, includingPropertiesForKeys: resourceKeys, options: .skipsHiddenFiles, errorHandler: nil)
 
-        if let fileEnumerator = fileEnumerator, urls = fileEnumerator.allObjects as? [URL] {
+        if let fileEnumerator = fileEnumerator, let urls = fileEnumerator.allObjects as? [URL] {
             return urls
         }
 

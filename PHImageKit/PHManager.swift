@@ -76,7 +76,7 @@ public class PHManager: NSObject {
      */
     public func imageData(_ url: URL, comletion: ((data: Data) -> Void)) {
         let _ = imageWithUrl(url, progress: { (percent) -> Void in }) { (object) -> Void in
-            if let object = object, data = object.data {
+            if let object = object, let data = object.data {
                 comletion(data: data as Data)
             }
         }

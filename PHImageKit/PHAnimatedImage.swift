@@ -64,7 +64,7 @@ public class PHAnimatedImage: UIImage {
 
         self.imageSource = imageSource
 
-        guard let imageSourceContainerType = CGImageSourceGetType(imageSource) where UTTypeConformsTo(imageSourceContainerType, kUTTypeGIF) else {
+        guard let imageSourceContainerType = CGImageSourceGetType(imageSource) , UTTypeConformsTo(imageSourceContainerType, kUTTypeGIF) else {
             return
         }
 

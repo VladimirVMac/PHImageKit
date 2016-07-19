@@ -31,7 +31,7 @@ public class PHImageView: UIImageView {
     public var url : URL? {
         didSet {
             if let oldValue = oldValue {
-                if let url = url where url.absoluteString == oldValue.absoluteString {
+                if let url = url , url.absoluteString == oldValue.absoluteString {
                     return
                 }
 
